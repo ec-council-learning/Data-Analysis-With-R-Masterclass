@@ -1,0 +1,377 @@
+---
+title: "Case_Study_2_Analysis_to_aid_a_business_objective"
+---
+
+```{r}
+## Loading required modules
+options(warn=-1)
+library(stringr)
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+```
+
+
+```{r}
+## Loading the survey data
+
+df <- read.csv('kaggle_survey_2020_responses.csv')
+dim(df)
+str(df)
+```
+
+```{r}
+## Loading questions dataframe 
+
+q_df <- read.csv('questions_dataframe.csv')
+dim(q_df)
+str(q_df)
+
+```
+
+#### Data Prep
+
+```{r}
+## Creating Salary Buckets
+df[df==""] <- NA
+dat <- df[!is.na(df$Q24),]
+dat <- dat[2:nrow(dat),]
+dat$Time.from.Start.to.Finish..seconds. <- NULL
+dim(dat)
+
+v_low <- c('$0-999', '1,000-1,999', '2,000-2,999', '3,000-3,999', "4,000-4,999", '5,000-7,499', 
+           '7,500-9,999', '10,000-14,999', '15,000-19,999')
+low <- c('20,000-24,999','25,000-29,999', '30,000-39,999','40,000-49,999')
+medium <- c('50,000-59,999','60,000-69,999', '70,000-79,999','80,000-89,999', '90,000-99,999')
+high <- c('100,000-124,999', '125,000-149,999')
+v_high <- c('150,000-199,999', '200,000-249,999','250,000-299,999', '300,000-500,000', '> $500,000')
+
+dat$Q24 <- ifelse(dat$Q24 %in% v_low, 'very low', 
+                  ifelse(dat$Q24 %in% low, 'low', 
+                         ifelse(dat$Q24 %in% medium, 'medium', 
+                                ifelse(dat$Q24 %in% high, 'high', 'very high'))))
+
+dat %>% count(dat[,'Q24'],sort = T)
+```
+
+```{r}
+unique(q_df[,c('ques_keys','tag')])
+```
+
+### Areas for analysis
+
+1. Education
+    - Formal Education (Q4)
+    - DS Course Platforms (Q37)
+    - Analysis Sharing Platforms (Q36)
+    - DS Media Sources (Q39)
+    
+    
+2. Where do you work?
+    - Country of Residence (Q3)
+    - Company Size (Q20)
+    - DS Team Size (Q21)
+    - ML in Production (Q22)
+    
+    
+3. Job Role & Experience
+    - current role (Q5)
+    - coding experience (Q6)
+    - Machine Learning Experience (Q15)
+    - Work Responsibilites (Q23)
+    
+    
+4. Tools of the Trade
+    - Programming Languages (Q7)
+    - Computing Platform (Q11)
+    - Specialized Hardware (Q12)
+    - Visualisation Tools (Q14)
+    - ML Frameworks (Q16)
+    - ML Algorithms (Q17)
+    - Computer Vision Methods (Q18)
+    - NLP Methods (Q19)
+    - ML & Cloud Spend (Q25)
+    - Cloud Computing Platforms (Q26_A)
+    - Cloud Computing Products (Q27_A)
+    - Machine Learning Products (Q28_A)
+    - Big Data Products (Q29_A)
+    - BI Tools (Q31_A)
+    - Auto ML Tools (Q34_A)
+    - Experiments Tracking (Q35_A)
+    
+```{r}
+## Helper Functions
+
+# Calculating percentage share for a category
+perc_share<- function(x){
+  s <- sum(x)
+  r <- round((x/s)*100,2)
+  return(r)
+}
+
+# Computing contingency table for  2 categorical vars & converting counts to percetage values
+contingency_table_pct <- function(ques_num_1, ques_num_2 = 'Q24'){
+  if(q_df$ques_type[q_df$ques_keys == ques_num_1][1] == 'single_answer'){
+    cross_tab <- table(dat[,ques_num_1],dat[,ques_num_2])
+  }
+  else{
+    list_of_columns <- q_df$q_header[q_df$ques_keys == ques_num_1]
+    cross_tab <- table(dat[,list_of_columns[1]], dat[,ques_num_2])
+    for(col in list_of_columns[2:length(list_of_columns)]){
+      result <- table(dat[,col], dat[,ques_num_2])
+      cross_tab = rbind(cross_tab,result)
+    }
+  }
+  cross_tab <- cross_tab[,c('very low', 'low', 'medium', 'high', 'very high')]
+  cross_tab_pct <- apply(cross_tab,2,perc_share)
+  return(cross_tab_pct)
+}
+
+
+# Side by side bar plots 
+ss_barplot <- function(x, title, xlabel, ylabel){
+  a <- data.frame(x)
+  a$index <- row.names(a)
+  a <- melt(a)
+  p <- ggplot(a, aes(x=variable, y=value, fill=index)) + 
+    geom_bar(stat='identity', position='dodge')
+  p <- p + ggtitle(title) + labs(y=ylabel, x = xlabel)
+  return(p)
+}
+
+# Multiple line plots
+line_charts <- function(x, title, xlabel, ylabel){
+  a <- data.frame(x)
+  a$index <- row.names(a)
+  a <- melt(a)
+  p <- ggplot(a, aes(x=variable, y=value, group = index,color = index)) + geom_line()
+  p <- p + ggtitle(title) + labs(y=ylabel, x = xlabel)
+  return(p)
+}
+
+```
+
+#### Education
+- Formal Education (Q4)
+- DS Course Platforms (Q37)
+- Analysis Sharing Platforms (Q36)
+- DS Media Sources (Q39)
+
+```{r}
+## Salary vs formal education (Q4)
+
+cross_tab_pct = contingency_table_pct('Q4', 'Q24')
+
+row.names(cross_tab_pct)[row.names(cross_tab_pct) == 'Some college/university study without earning a bachelor’s degree'] <- 'College experience'
+row.names(cross_tab_pct)[row.names(cross_tab_pct) == 'No formal education past high school'] <- 'High School'
+
+
+title <- 'Education Vs Salary'
+xlabel <- 'salary_bracket'
+ylabel <- 'perc_share'
+ss_barplot(cross_tab_pct,title, xlabel, ylabel)
+line_charts(cross_tab_pct,title, xlabel, ylabel)
+```
+
+While Master's degree appears commonly across all income brackets, number of people with just a bachelor's degree declines from low to high income groups. The number of doctorates see a steady rise from low to high income groups.
+
+```{r}
+## Salary vs DS Course Platform (Q37)
+
+cross_tab_pct = contingency_table_pct('Q37', 'Q24')
+
+row.names(cross_tab_pct)[row.names(cross_tab_pct) == 'Cloud-certification programs (direct from AWS, Azure, GCP, or similar)'] <- 'Cloud-certification programs'
+row.names(cross_tab_pct)[row.names(cross_tab_pct) == 'University Courses (resulting in a university degree)'] <- 'University Courses'
+
+title <- 'DS Course Platform Vs Salary'
+xlabel <- 'salary_bracket'
+ylabel <- 'perc_share'
+ss_barplot(cross_tab_pct,title, xlabel, ylabel)
+line_charts(cross_tab_pct,title, xlabel, ylabel)
+```
+
+
+Popular course platforms (Coursera, edX, Fast.ai) providing quality content in complex areas like deep learning see steady rise from low to high income groups. While platforms with starter courses like Kaggle learn and Udemy observe more popularity among low income groups.
+
+```{r}
+## Salary vs Analysis Sharing Platforms (Q36)
+
+cross_tab_pct = contingency_table_pct('Q36', 'Q24')
+
+title <- 'Analysis Sharing Platforms Vs Salary'
+xlabel <- 'salary_bracket'
+ylabel <- 'perc_share'
+ss_barplot(cross_tab_pct,title, xlabel, ylabel)
+line_charts(cross_tab_pct,title, xlabel, ylabel)
+
+```
+
+GitHub remains the most popular choice across salary brackets for sharing analysis. However, with increase in income, activity on public platforms (kaggle, colab etc.) goes down. 
+
+```{r fig.align="center",fig.width = 15}
+## Salary vs DS Media Sources (Q39)
+
+cross_tab_pct = contingency_table_pct('Q39', 'Q24')
+
+title <- 'DS Media Sources Vs Salary'
+xlabel <- 'salary_bracket'
+ylabel <- 'perc_share'
+ss_barplot(cross_tab_pct,title, xlabel, ylabel)
+line_charts(cross_tab_pct,title, xlabel, ylabel)
+```
+
+
+
+The high income bracket relies on Data Science experts to keep up with the industry trends. They do this by reading Journal publications, following people on twitter, signing up for email newsletters, podcasts and blogs. They avoid community platforms like youtube, slack communities or course forums. 
+
+
+### Education | Analysis Recommendations
+- Higher education like Master's and Doctorates help in a quantitaive field like data science.
+- Invest in continuous learning of industry trends using quality internet platforms like Coursera, edX, Fast.ai etc.
+- If you find the time to share your work, use popular choices like GitHub, Kaggle and Colab.
+- Keep abridged with the industry developments by reading Journal publications, email newsletters, twitter, podcasts & blogs.
+
+### Where do you work?
+- Country of Residence (Q3)
+- Company Size (Q20)
+- DS Team Size (Q21)
+- ML in Production (Q22)
+
+```{r}
+## Salary vs Country of Residence (Q3)
+
+countries <- c('India', 'United Kingdom of Great Britain and Northern Ireland',
+              'United States of America', 'Brazil', ' Japan', 'Russia', 'Other',
+              'Nigeria', 'China', 'Germany')
+
+country_data <- dat[dat$Q3 %in% countries,]
+cross_tab <- table(country_data[,'Q3'],country_data[,'Q24'])
+cross_tab_pct <- apply(cross_tab,2,perc_share)
+
+row.names(cross_tab_pct)[row.names(cross_tab_pct) == 'United Kingdom of Great Britain and Northern Ireland'] <- 'UK'
+row.names(cross_tab_pct)[row.names(cross_tab_pct) == 'United States of America'] <- 'USA'
+
+title <- 'Country of Residence Vs Salary'
+xlabel <- 'salary_bracket'
+ylabel <- 'perc_share'
+ss_barplot(cross_tab_pct,title, xlabel, ylabel)
+line_charts(cross_tab_pct,title, xlabel, ylabel)
+```
+
+The USA is the place to be for Data Science professionals followed by developed countries like the UK and Germany. Develping countries like India, China etc. have less high paying roles.
+
+```{r}
+## Salary vs Company Size (Q20)
+
+cross_tab_pct = contingency_table_pct('Q20', 'Q24')
+
+title <- 'Company Size Vs Salary'
+xlabel <- 'salary_bracket'
+ylabel <- 'perc_share'
+ss_barplot(cross_tab_pct,title, xlabel, ylabel)
+line_charts(cross_tab_pct,title, xlabel, ylabel)
+```
+
+
+Large companies with 1000 or more personnel are the best places to work for high income.
+
+```{r}
+## Salary vs DS Team Size (Q21)
+
+cross_tab_pct = contingency_table_pct('Q21', 'Q24')
+
+title <- 'DS Team Size Vs Salary'
+xlabel <- 'salary_bracket'
+ylabel <- 'perc_share'
+ss_barplot(cross_tab_pct,title, xlabel, ylabel)
+line_charts(cross_tab_pct,title, xlabel, ylabel)
+```
+
+Large Data Science Teams (>15) are the go to places for high incomes.
+
+```{r fig.align="center",fig.width = 15}
+## Salary vs ML in Production (Q22)
+
+cross_tab_pct = contingency_table_pct('Q22', 'Q24')
+
+title <- 'ML in Production Vs Salary'
+xlabel <- 'salary_bracket'
+ylabel <- 'perc_share'
+ss_barplot(cross_tab_pct,title, xlabel, ylabel)
+line_charts(cross_tab_pct,title, xlabel, ylabel)
+```
+
+
+Places using ML in production pay more than the ones not using it.
+
+### Where do you work? | Analysis Recommendations
+- Large companies with big data science teams that use machine learning in production are the best places to work for a higher income.
+- USA seems to be the go to destination for such opportunities.
+
+### Job Role & Experience 
+- current role (Q5)
+- coding experience (Q6)
+- Machine Learning Experience (Q15)
+- Work Responsibilites (Q23)
+
+```{r}
+## Salary vs current role (Q5)
+
+cross_tab_pct = contingency_table_pct('Q5', 'Q24')
+
+title <- 'current role Vs Salary'
+xlabel <- 'salary_bracket'
+ylabel <- 'perc_share'
+ss_barplot(cross_tab_pct,title, xlabel, ylabel)
+line_charts(cross_tab_pct,title, xlabel, ylabel)
+```
+
+Data Scientist and Product Manager are the highest paying roles.
+
+```{r}
+## Salary vs coding experience (Q6)
+
+cross_tab_pct = contingency_table_pct('Q6', 'Q24')
+
+title <- 'coding experience Vs Salary'
+xlabel <- 'salary_bracket'
+ylabel <- 'perc_share'
+ss_barplot(cross_tab_pct,title, xlabel, ylabel)
+line_charts(cross_tab_pct,title, xlabel, ylabel)
+```
+
+Coding experience pays. More experience translates to more pay.
+
+```{r}
+## Salary vs Machine Learning Experience (Q15)
+
+cross_tab_pct = contingency_table_pct('Q15', 'Q24')
+
+title <- 'Machine Learning Experience Vs Salary'
+xlabel <- 'salary_bracket'
+ylabel <- 'perc_share'
+ss_barplot(cross_tab_pct,title, xlabel, ylabel)
+line_charts(cross_tab_pct,title, xlabel, ylabel)
+```
+
+ML Experience pays. More experience translates to more money.
+
+```{r fig.align="center",fig.width = 15}
+## Salary vs Work Responsibilities (Q23)
+
+cross_tab_pct = contingency_table_pct('Q23', 'Q24')
+
+title <- 'Work Responsibilities Vs Salary'
+xlabel <- 'salary_bracket'
+ylabel <- 'perc_share'
+ss_barplot(cross_tab_pct,title, xlabel, ylabel) 
+line_charts(cross_tab_pct,title, xlabel, ylabel)
+```
+
+
+Using machine learning to generate value for companies by applying it in novel areas or improving existing systems pays the most.
+
+
+### Job Role & Experience | Analysis Recommendations
+- Aspire for data science roles where you get the chance to use machine learning to solve new or existing problems.
+- Build experience and knowledge in these roles. Experience pays.

@@ -1,0 +1,111 @@
+---
+title: "Generating Reports Using RMarkdown"
+author: "Ankit Shukla"
+date: "19/12/2021"
+output:
+  html_document:
+    df_print: paged
+---
+
+### List of Topics
+- Adding text to the report
+  - Headers
+  - Bold & Italics
+  - Bullets
+  - Numbered Lists
+- Adding Hyperlinks
+- Adding Images
+- Code blocks & outputs 
+
+```{r}
+
+```
+
+This is a Rmarkdown tutorial
+
+# Header1
+## Header2
+### Header3
+#### Header4
+
+
+This is a **Rmarkdown** tutorial
+This is a *Rmarkdown* tutorial
+
+- Point 1
+- Point 2
+- Point 3
+  - subpoint 1
+  - subpoint 2
+  
+1. Point a
+2. Point b
+
+[Hyperlink to mtcars dataset](https://www.rdocumentation.org/packages/datasets/versions/3.6.2/topics/mtcars)
+
+![](/Users/ankitshukla/Desktop/stock_car_photo.jpeg)
+
+
+```{r}
+a <- c(1,2,3)
+a
+```
+
+```{r, eval = FALSE}
+a <- c(4,5,6)
+a
+```
+
+
+```{r, eval = TRUE}
+a <- c(4,5,6)
+a
+```
+
+
+
+```{r, echo = TRUE}
+a <- c(4,5,6)
+a
+```
+
+
+
+```{r, echo = FALSE}
+a <- c(4,5,6)
+a
+```
+
+
+
+```{r, include = TRUE}
+a <- c(4,5,6)
+a
+```
+
+
+
+```{r, include = FALSE}
+a <- c(4,5,6)
+a
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

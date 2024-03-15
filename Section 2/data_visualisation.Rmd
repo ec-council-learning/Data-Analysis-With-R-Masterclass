@@ -1,0 +1,167 @@
+---
+title: "Data Visualisation"
+
+---
+
+```{r}
+## Loading required modules
+
+library(stringr)
+library(dplyr)
+library(ggplot2)
+```
+### mtcars dataset - https://www.rdocumentation.org/packages/datasets/versions/3.6.2/topics/mtcars
+
+```{r}
+## Using mtcars dataset
+mtcars
+```
+
+```{r}
+dim(mtcars)
+```
+### Grammer of graphics
+
+The 3 main elements - 
+
+1. Data
+2. Aesthetics
+3. Geometry
+
+
+```{r}
+## Histogram
+
+ggplot(data = mtcars, aes(x = hp)) + geom_histogram()
+```
+
+```{r}
+## Changing number of bins in the histogram
+ggplot(data = mtcars, aes(x = hp)) + geom_histogram(bins = 8)
+```
+```{r}
+## Changing plot color
+ggplot(data = mtcars, aes(x = hp)) + geom_histogram(bins = 8, fill = 'blue')
+```
+```{r}
+## Highlighting bin borders
+ggplot(data = mtcars, aes(x = hp)) + geom_histogram(bins = 8, fill = 'blue', col = 'red')
+```
+
+```{r}
+mtcars$am <- as.factor(mtcars$am)
+ggplot(data = mtcars, aes(x = hp, fill = am)) + geom_histogram(bins = 8)
+```
+
+```{r}
+ggplot(data = mtcars, aes(x = hp, fill = am)) + geom_histogram(bins = 8, position = 'fill')
+```
+
+```{r}
+## Adding title
+ggplot(data = mtcars, aes(x = hp)) + geom_histogram(bins = 8, fill = 'blue', col = 'red') + labs(title = 'Horse power distribution')
+```
+
+```{r}
+## Adding labels
+
+ggplot(data = mtcars, aes(x = hp)) + geom_histogram(bins = 8, fill = 'blue', col = 'red') + labs(title = 'Horse power distribution', y="count", x = "horse power")
+
+```
+
+```{r}
+## Adding legend title
+ggplot(data = mtcars, aes(x = hp, fill = am)) + geom_histogram(bins = 8) + labs(fill = 'am_index')
+
+```
+
+```{r}
+## Changing theme
+ggplot(data = mtcars, aes(x = hp, fill = am)) + geom_histogram(bins = 8) + labs(fill = 'am_index') + theme_minimal()
+```
+
+
+```{r}
+## Scatter Plot
+
+ggplot(data = mtcars, aes(x = hp,y=disp)) + geom_point() + labs(title = 'hp vs disp') 
+```
+
+```{r}
+ggplot(data = mtcars, aes(x = hp,y=disp, col = am)) + geom_point() + labs(title = 'hp vs disp')
+```
+
+```{r}
+ggplot(data = mtcars, aes(x = hp,y=disp, shape = am)) + geom_point() + labs(title = 'hp vs disp')
+```
+
+```{r}
+## Line chart
+
+ggplot(data = mtcars, aes(x = hp,y=disp)) + geom_line() + labs(title = 'hp vs disp')
+```
+
+```{r}
+## Bar Charts
+
+cyl_count <- mtcars %>% count(mtcars[,'cyl'])
+colnames(cyl_count) <- c('num_cylinders','count')
+cyl_count$num_cylinders <- as.factor(cyl_count$num_cylinders)
+cyl_count
+```
+```{r}
+ggplot(cyl_count, aes(x = num_cylinders, y = count)) + geom_bar(stat="identity") 
+```
+
+```{r}
+ggplot(cyl_count, aes(x = num_cylinders, y = count, fill = num_cylinders)) + geom_bar(stat="identity")
+```
+
+
+
+```{r}
+## Stacked bar charts
+cyl_am_count <- mtcars %>% group_by(cyl,am) %>% summarise(cnt = length(disp))
+cyl_am_count$cyl <- as.factor(cyl_am_count$cyl)
+cyl_am_count
+```
+
+```{r}
+ggplot(cyl_am_count, aes(x = cyl, y = cnt, fill = am)) + geom_bar(stat="identity") 
+```
+```{r}
+## Horizontal bar chart
+ggplot(cyl_am_count, aes(x = cyl, y = cnt, fill = am)) + geom_bar(stat="identity") + coord_flip()
+
+```
+
+```{r}
+## Side by side bar chart
+ggplot(cyl_am_count, aes(x = cyl, y = cnt, fill = am)) + geom_bar(position = "dodge",stat="identity")
+
+```
+
+```{r}
+## Boxplots
+mtcars$cyl <- as.factor(mtcars$cyl)
+ggplot(data = mtcars, aes(x = cyl, y = hp)) + geom_boxplot()
+```
+
+```{r}
+ggplot(data = mtcars, aes(x = cyl, y = hp, fill = cyl)) + geom_boxplot()
+```
+
+```{r}
+ggplot(data = mtcars, aes(x = cyl, y = hp, fill = am)) + geom_boxplot()
+```
+
+```{r}
+## Using facets
+
+ggplot(data = mtcars, aes(x = cyl, y = hp, fill = cyl)) + geom_boxplot() + facet_grid(~am)
+```
+
+```{r}
+ggplot(cyl_am_count, aes(x = cyl, y = cnt, fill = cyl)) + geom_bar(position = "dodge",stat="identity") + facet_grid(~am)
+```
+

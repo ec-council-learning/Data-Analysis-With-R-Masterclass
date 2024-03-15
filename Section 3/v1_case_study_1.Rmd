@@ -1,0 +1,346 @@
+---
+title: "Case_Study_1_Data_Understanding_&_Insights"
+---
+
+```{r}
+## Loading required modules
+
+library(stringr)
+library(dplyr)
+library(ggplot2)
+```
+
+
+```{r}
+## Loading survey responses data and subsetting for analysts
+
+df <- read.csv('kaggle_survey_2020_responses.csv')
+dim(df)
+```
+
+## Data Understanding
+
+```{r}
+## Listing columns
+
+colnames(df)[1:10]
+```
+
+```{r}
+## Listing Questions
+
+df[1,][1:5]
+```
+
+```{r}
+## Preparing a data frame containing question numbers and questions    
+
+q_header <- colnames(df)[2:length(colnames(df))]
+question <- unlist(df[1,2:ncol(df)])
+q_df <- data.frame(q_header, question)
+print(str(q_df))
+```
+
+
+```{r}
+# Extracting questions numbers from question headers
+ques_num <- str_split(q_df$q_header,"_")
+ques_num <- unlist(lapply(ques_num, function(x){return(x[1])}))
+q_df$ques_num <- ques_num
+print(str(q_df))
+```
+
+```{r}
+## Extracting question keys from question headers
+
+get_ques_key <- function(x){
+  if(length(x)>1 && (x[2] == 'A' | x[2] == 'B')){
+    a <- paste(x[1],x[2],sep = "_")
+    return(a)
+  }
+  else{return(x[1])}
+}
+
+ques_key <- str_split(q_df$q_header,"_")
+q_df$ques_keys <- unlist(lapply(ques_key, get_ques_key))
+str(q_df)
+```
+
+
+```{r}
+# Question type
+
+q_count <- q_df %>% count(ques_keys)
+q_count$ques_type <- ifelse(q_count$n > 1, 'multiple_answer', 'single_answer')
+q_df <- merge(q_df, q_count[,c('ques_keys','ques_type')], by = 'ques_keys',all.x=T)
+
+# Re-arranging columns
+q_df = q_df[,c('q_header','ques_keys','ques_num','ques_type','question')]
+```
+
+
+```{r}
+## Function for computing missing value percentages for every question
+missing_value_perc <- function(ques_num){
+  if(q_df$ques_type[q_df$ques_num == ques_num][1] == 'single_answer'){
+    mv_perc <- nrow(df[is.na(df[,ques_num]),])/nrow(df)
+  }
+  else{
+    column_list <- q_df$q_header[q_df$ques_num == ques_num]
+    test <- data.frame(df[,column_list])
+    test$newcol <- coalesce(!!!test)
+    mv_perc <- nrow(test[is.na(test[,'newcol']),])/nrow(test)
+  }
+  return(round(mv_perc*100,2))
+}
+
+
+## Replacing blank values in data with NA before computing missing values percentages
+df <- apply(df,2,function(x){trimws(x)})
+df[df==""] <- NA
+df <- data.frame(df)
+
+
+## computing missing values percentages for each question
+ques_num <- data.frame(unique(q_df$ques_num))
+ques_num$missing_perc <- apply(ques_num,1,missing_value_perc)
+colnames(ques_num)[1] <- 'ques_num'
+ques_missing_perc <- ques_num[order(-ques_num$missing_perc),]
+ques_missing_perc
+```
+
+```{r}
+unique(q_df$question[q_df$ques_num == 'Q19'])
+```
+```{r}
+## Loading question tag mapping (manually created)
+
+q_tag = read.csv('Question_Tags_Kaggle_Survey_2020.csv')
+dim(q_tag)
+head(q_tag)
+```
+
+
+```{r}
+## Combining the missing percentage & tags data to the q_df dataframe
+q_df <- merge(q_df, ques_missing_perc, all.x = T, by = 'ques_num')
+q_df <- merge(q_df, q_tag, all.x = T, by = 'ques_num')
+head(q_df)
+```
+```{r}
+## Writing the q_df to disk
+
+write.csv(q_df, 'questions_dataframe.csv', row.names = F)
+```
+
+## Generating Insights
+
+```{r}
+## Survey responses data without questions
+dat <- df[2:nrow(df),]
+dim(dat)
+```
+
+
+```{r}
+## Helper Functions
+
+# Calculating the # of responders for each category
+insights <- function(question){
+  
+  if(q_df$ques_type[q_df$ques_keys == question][1] == 'single_answer'){
+    perc_responders <- dat %>% count(dat[,question],sort = T)
+    perc_responders <- perc_responders[complete.cases(perc_responders),]
+    perc_responders$n <- perc_responders$n/nrow(dat)*100 
+    colnames(perc_responders) <- c('Index','Responder_Percentage')
+  }
+  else{
+    list_of_cols <- q_df$q_header[q_df$ques_keys == question]
+    perc_responders <- dat %>% count(dat[,list_of_cols[1]],sort = T)
+    perc_responders <- perc_responders[complete.cases(perc_responders),]
+    colnames(perc_responders) <- c('Index','Responder_Percentage')
+    
+    for(col in list_of_cols[2:length(list_of_cols)]){
+      resp_count <- dat %>% count(dat[,col],sort = T)
+      resp_count <- resp_count[complete.cases(resp_count),]
+      colnames(resp_count) <- c('Index','Responder_Percentage')
+      perc_responders <- rbind(perc_responders, resp_count)
+    }
+    
+    perc_responders$Responder_Percentage <- perc_responders$Responder_Percentage/nrow(dat)*100
+  }
+  return(perc_responders[order(-perc_responders$Responder_Percentage),])
+}
+
+## Plotting the # of responders using bar plots
+dist_bar_plots <- function(title, xlabel, ylabel){
+  p <- ggplot(perc_responders, aes(y=Responder_Percentage, x=Index, fill = Index)) + 
+    geom_bar(stat="identity") +
+    theme_minimal()
+  p <- p + coord_flip() + ggtitle(title) + labs(y=ylabel, x = xlabel)
+  return(p)
+}
+```
+
+
+```{r}
+## Q1 - Age
+
+perc_responders <- insights('Q1')
+
+title <- 'Age Distribution'
+xlabel <- 'Age Groups'
+ylabel <- '% of Responders'
+
+dist_bar_plots(title, xlabel, ylabel)
+
+```
+
+Most People active in the data science space are quite young and lie in 18-34 age bracket.
+
+```{r}
+## Q2 - Gender
+
+perc_responders <- insights('Q2')
+
+title <- 'Gender Distribution'
+xlabel <- 'Gender'
+ylabel <- '% of Responders'
+
+dist_bar_plots(title, xlabel, ylabel)
+```
+
+The data science space is largely male dominated with 79% male responders 
+
+```{r}
+## Q3 - Country Of Residence
+
+perc_responders <- insights('Q3')
+perc_responders <- head(perc_responders,10)
+perc_responders$Index[perc_responders$Index == 'United Kingdom of Great Britain and Northern Ireland'] <- 'UK'
+perc_responders$Index[perc_responders$Index == 'United States of America'] <- 'USA'
+
+
+title = 'Country-wise Distribution'
+xlabel = 'Country of Residence'
+ylabel = '% of Responders'
+
+dist_bar_plots(title, xlabel, ylabel)
+```
+
+India & The US lead in terms of number of data enthusiasts followed by Brazil, Japan & Russia
+
+```{r}
+## Q4 - Educational Qualification/Degree
+
+perc_responders <- insights('Q4')
+perc_responders$Index[perc_responders$Index == 'Some college/university study without earning a bachelor’s degree'] <- 'College experience'
+perc_responders$Index[perc_responders$Index == 'No formal education past high school'] <- 'High School'
+
+title = 'Educational Qualification Distribution'
+xlabel = 'Educational Qualification'
+ylabel = '% of Responders'
+
+dist_bar_plots(title, xlabel, ylabel)
+```
+
+Most data enthusiasts have some college degree (either master's or bachelor's followed by doctorates)
+
+```{r}
+## Q5 - Job Title
+
+perc_responders <- insights('Q5')
+
+title = 'Job Title Distribution'
+xlabel = 'Job Title'
+ylabel = '% of Responders'
+
+dist_bar_plots(title, xlabel, ylabel)
+
+```
+
+Students form a quarter of the responders followed by data scientists & analysts (data/business)
+
+
+```{r}
+## Q6 - Programming Experience
+
+perc_responders <- insights('Q6')
+
+title = 'Programming Experience Distribution'
+xlabel = 'Programming Experience'
+ylabel = '% of Responders'
+
+dist_bar_plots(title, xlabel, ylabel)
+
+```
+
+```{r}
+perc_responders
+```
+
+60% of the responders lie in 0-5 years bracket. Around 5% of the responders have never written code
+
+
+```{r}
+## Q7 - Programming Language
+
+perc_responders = insights('Q7')
+
+title = 'Programming Languages Distribution'
+xlabel = 'Programming Language'
+ylabel = '% of Responders'
+
+dist_bar_plots(title, xlabel, ylabel)
+```
+
+Python is the most popular programming language followed by R & SQL
+
+
+```{r}
+## Q8 - Recommended Programming Language
+
+perc_responders = insights('Q8')
+
+title = 'Most Recommended Programming Languages'
+xlabel = 'Recommended Programming Language'
+ylabel = '% of Responders'
+
+dist_bar_plots(title, xlabel, ylabel)
+
+```
+
+Python is the most recommended programming language for aspiring data enthusiasts followed by R & SQL
+
+
+```{r}
+## Q9 - IDE
+
+perc_responders = insights('Q9')
+
+title = 'Most Popular IDEs'
+xlabel = 'IDE'
+ylabel = '% of Responders'
+
+dist_bar_plots(title, xlabel, ylabel)
+
+```
+
+The popularity of Jupyter Notebooks among data enthusiasts supersedes everything else. VS Code, PyCharm & RStudio are quite popular as well.
+
+```{r}
+## Q10 - Hosted Notebook Products
+
+perc_responders = insights('Q10')
+
+title = 'Most Popular Hosted Notebook Products'
+xlabel = 'Hosted Notebook Products'
+ylabel = '% of Responders'
+
+dist_bar_plots(title, xlabel, ylabel)
+```
+
+
+Among hosted notebook products, Google Colab & Kaggle notebooks lead the pack. Google cloud is quite ahead from the competitors Amazon & Microsoft
+
+
